@@ -1,0 +1,305 @@
+﻿<template>
+  <ElCard class="tree-card art-card-xs flex flex-col h-full mt-0 ml-4">
+    <template #header>
+      <div class="flex justify-between items-center">
+        <div class="flex items-center gap-2"> {{ props.groupname }}列表 </div>
+        <ElDropdown placement="bottom-end">
+          <ElButton size="small" type="primary">
+            <ArtSvgIcon icon="ri:arrow-down-s-line" />
+          </ElButton>
+          <template #dropdown>
+            <ElDropdownMenu>
+              <ElDropdownItem @click="createGroupCategory"
+                >添加{{ props.groupname }}</ElDropdownItem
+              >
+              <ElDropdownItem @click="syncTags">同步{{ props.groupname }}</ElDropdownItem>
+            </ElDropdownMenu>
+          </template>
+        </ElDropdown>
+      </div>
+    </template>
+    <ElScrollbar max-height="calc(100vh - 200px)">
+      <div class="category-list">
+        <div
+          v-for="item in items"
+          :key="item.id"
+          :class="[
+            'category-item flex items-center justify-between p-2 hover:bg-gray-50 cursor-pointer group',
+            props.group === item.id ? 'bg-gray-50' : ''
+          ]"
+          @click="handleNodeClick(item)"
+        >
+          <div class="mr-0 text-gray-400 flex items-center">
+            <ArtSvgIcon icon="ri:arrow-right-s-line" style="vertical-align: middle" />
+          </div>
+          <div class="category-info flex-1">
+            <div class="category-label text-xs">{{ item.name }}</div>
+          </div>
+          <div
+            class="category-actions opacity-0 group-hover:opacity-100 transition-opacity duration-200 h-6.5!"
+          >
+            <ElTag
+              v-if="item.id !== 0"
+              class="cursor-pointer mr-1"
+              v-auth="'groupupdate'"
+              type="primary"
+              @click.stop="editGroupCategory(item.id)"
+            >
+              <ArtSvgIcon icon="ri:edit-line" />
+            </ElTag>
+            <ElTag
+              v-if="item.id !== 0"
+              class="cursor-pointer"
+              v-auth="'groupdelete'"
+              type="danger"
+              @click.stop="deleteGroupCategory(item.id)"
+            >
+              <ArtSvgIcon icon="ri:delete-bin-5-line" />
+            </ElTag>
+          </div>
+        </div>
+        <ElEmpty
+          v-if="props.items.length == 0"
+          class="confset-empty-image"
+          :description="`暂无${props.groupname}数据`"
+        />
+      </div>
+      <!-- 字典分组弹窗 -->
+      <ElDialog
+        v-model="groupDialogVisible"
+        :title="groupDialogType === 'insert' ? '添加' + props.groupname : '编辑' + props.groupname"
+        width="30%"
+        align-center
+        class="wn-dialog"
+        @close="handleDialogClose"
+        body-class="group-fans-dialog-body"
+      >
+        <ElForm ref="formRef" :model="formData" :rules="rules" label-width="80px">
+          <ElFormItem label="名称" prop="name">
+            <ElInput v-model="formData.name" placeholder="请输入名称" />
+          </ElFormItem>
+          <ElFormItem label="状态" prop="status">
+            <ElSwitch v-model="formData.status" :active-value="1" :inactive-value="0" />
+          </ElFormItem>
+        </ElForm>
+        <template #footer>
+          <div class="dialog-footer">
+            <ElButton @click="handleDialogClose">取消</ElButton>
+            <ElButton type="primary" :loading="submitLoading" @click.stop="handleGroupSubmit"
+              >提交</ElButton
+            >
+          </div>
+        </template>
+      </ElDialog>
+    </ElScrollbar>
+  </ElCard>
+</template>
+
+<script setup lang="ts">
+  import { get, post, del } from '@admin/core/request'
+  import type { GroupItem, FormRules } from './types'
+  import { ref } from 'vue'
+  import { ElMessage, ElMessageBox, ElEmpty } from 'element-plus'
+  interface Props {
+    items: GroupItem[]
+    config: any
+    groupname: string
+    group: number
+  }
+
+  interface Emits {
+    (e: 'nodeClick', item: GroupItem): void
+    (e: 'refresh'): void
+  }
+  const props = defineProps<Props>()
+  const UPDATE_API = props.config.url + '/groupupdate'
+  const INSERT_API = props.config.url + '/groupinsert'
+  const DELETE_API = props.config.url + '/groupdelete'
+  const SYNCTAGS_API = props.config.url + '/synctags'
+  const formRef = ref()
+  const formData = ref<GroupItem>({
+    id: 0,
+    tagid: '',
+    name: '',
+    count: 0,
+    status: 1
+  })
+  const rules = ref<FormRules>({
+    name: [{ required: true, message: '请输入分组名称', trigger: 'blur' }],
+    status: [{ required: true, message: '请选择状态', trigger: 'change' }]
+  })
+  const emit = defineEmits<Emits>()
+  // 提交loading状态
+  const submitLoading = ref(false)
+
+  // 处理节点点击事件
+  const handleNodeClick = (item: GroupItem) => {
+    emit('nodeClick', item)
+  }
+  // 分组弹窗显示控制
+  const groupDialogVisible = ref(false)
+  // 分组弹窗类型
+  const groupDialogType = ref('insert')
+
+  // 重置表单数据
+  const resetFormData = () => {
+    formData.value = {
+      id: 0,
+      tagid: '',
+      name: '',
+      count: 0,
+      status: 1
+    }
+  }
+
+  // 分组弹窗提交事件
+  const handleGroupSubmit = async () => {
+    try {
+      // 表单验证
+      await formRef.value.validate()
+      submitLoading.value = true
+      if (groupDialogType.value === 'insert') {
+        // 新增分组
+        await post(INSERT_API, formData.value)
+        ElMessage.success('添加成功')
+      } else {
+        // 更新分组
+        await post(UPDATE_API, formData.value)
+        ElMessage.success('更新成功')
+      }
+
+      groupDialogVisible.value = false
+      resetFormData()
+      // 通知父组件刷新数据
+      emit('refresh')
+    } catch (error) {
+      console.error('提交失败:', error)
+      ElMessage.error('提交失败，请重试')
+    } finally {
+      submitLoading.value = false
+    }
+  }
+
+  // 同步标签（从微信拉取标签列表写入本地）
+  // 弹确认框 → 确认后按钮 loading 旋转 → 调接口 → 完成关闭并刷新
+  const syncTags = () => {
+    ElMessageBox.confirm(
+      '同步标签将从微信服务器拉取标签数据，可能需要一些时间，请耐心等待。',
+      '同步标签确认',
+      {
+        confirmButtonText: '开始同步',
+        cancelButtonText: '取消',
+        type: 'info',
+        beforeClose: async (action, instance, done) => {
+          if (action !== 'confirm') {
+            done()
+            return
+          }
+          instance.confirmButtonLoading = true
+          instance.confirmButtonText = '同步中...'
+          try {
+            const res: any = await get(SYNCTAGS_API)
+            done()
+            ElMessage.success(`同步完成，新增 ${res.inserted} 条，更新 ${res.updated} 条`)
+            emit('refresh')
+          } catch (e) {
+            console.error('同步标签失败:', e)
+            ElMessage.error('同步标签失败，请重试')
+            instance.confirmButtonLoading = false
+            instance.confirmButtonText = '开始同步'
+          }
+        }
+      }
+    ).catch(() => {})
+  }
+
+  // 创建分组
+  const createGroupCategory = () => {
+    groupDialogVisible.value = true
+    groupDialogType.value = 'insert'
+    resetFormData()
+  }
+
+  // 编辑分组
+  const editGroupCategory = (id: number) => {
+    const item = props.items.find((i) => i.id === id)
+    if (item) {
+      groupDialogVisible.value = true
+      groupDialogType.value = 'update'
+      // 填充现有数据
+      formData.value = {
+        id: item.id,
+        tagid: item.tagid,
+        name: item.name,
+        count: item.count,
+        status: item.status
+      }
+    }
+  }
+
+  // 删除分组
+  const deleteGroupCategory = async (id: number) => {
+    try {
+      await ElMessageBox.confirm(
+        '确定要删除该分组吗？删除后，该分组下的数据也将被删除。',
+        '删除确认',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        }
+      )
+
+      await del(DELETE_API, { id })
+      ElMessage.success('删除成功')
+
+      // 如果删除的是当前选中的分组，重置选中状态
+      if (props.group === id) {
+        emit('nodeClick', { id: 0, tagid: '', name: '', count: 0, status: 1 })
+      }
+
+      // 通知父组件刷新数据
+      emit('refresh')
+    } catch (error) {
+      // 用户取消删除
+      if (error !== 'cancel') {
+        console.error('删除失败:', error)
+        ElMessage.error('删除失败，请重试')
+      }
+    }
+  }
+
+  // 关闭弹窗
+  const handleDialogClose = () => {
+    groupDialogVisible.value = false
+    resetFormData()
+    formRef.value?.resetFields()
+  }
+  // 在组件挂载时添加键盘事件监听
+  onMounted(() => {
+    document.addEventListener('keydown', handleKeyDown)
+  })
+
+  // 在组件卸载时移除键盘事件监听
+  onUnmounted(() => {
+    document.removeEventListener('keydown', handleKeyDown)
+  })
+  // 键盘事件处理函数
+  const handleKeyDown = (event: KeyboardEvent) => {
+    // 只在弹窗可见时处理
+    if (groupDialogVisible.value && event.key === 'Enter' && !event.shiftKey) {
+      // 阻止默认行为
+      event.preventDefault()
+      // 触发表单提交
+      handleGroupSubmit()
+    }
+  }
+</script>
+<style scoped>
+  :deep(.confset-empty-image .el-empty__image) {
+    width: 80px;
+  }
+  :global(.group-fans-dialog-body) {
+    padding: 10px 0px 0px 0px !important;
+  }
+</style>

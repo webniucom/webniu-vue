@@ -1,0 +1,10 @@
+packages:
+  - '.'
+
+allowBuilds:
+  esbuild: true
+  "@tailwindcss/oxide": true
+  vue-demi: true
+  "@parcel/watcher": true
+  core-js: true
+  es5-ext: true

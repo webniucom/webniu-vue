@@ -1,0 +1,80 @@
+/**
+ * 子应用 Tailwind v4 样式入口
+ *
+ * 只引 theme + utilities，刻意跳过 preflight（全局 reset）：
+ * 子应用与壳子运行在同一个 document 中，引入 preflight 会把壳子的按钮、标题等基础样式重置掉。
+ *
+ * 组件里正常写 Tailwind 工具类（h-[50px] / flex / items-center ...）即可，构建时按需生成。
+ */
+@layer theme, base, components, utilities;
+@import 'tailwindcss/theme.css' layer(theme);
+@import 'tailwindcss/utilities.css' layer(utilities);
+
+/* 扫描共享组件包源码，生成其中用到的工具类（包在子应用 root 之外，v4 自动探测不到）。
+   注意：@source 相对路径以本 CSS 文件所在目录为基准：
+   styles → assets(1) → src(2) → devs(3) → plugin(4) → vue(5) → shared/admin/src */
+@source '../../../../../shared/admin/src';
+
+@theme {
+  /* 语义色：壳子里 --color-primary 来自 --art-primary，这里兜底用 Element Plus 的主色变量 */
+  --color-primary: var(--el-color-primary, #409eff);
+
+  /* 灰色梯度：共享组件（ArtTableHeader / ArtForm 等）内部用到 text-g-xxx 等工具类，
+     实际色值来自基座全局 CSS 变量 --art-gray-xxx（同一 document，运行时可见） */
+  --color-g-100: var(--art-gray-100);
+  --color-g-200: var(--art-gray-200);
+  --color-g-300: var(--art-gray-300);
+  --color-g-400: var(--art-gray-400);
+  --color-g-500: var(--art-gray-500);
+  --color-g-600: var(--art-gray-600);
+  --color-g-700: var(--art-gray-700);
+  --color-g-800: var(--art-gray-800);
+  --color-g-900: var(--art-gray-900);
+  --color-box: var(--default-box-color, #fff);
+  --color-theme: var(--theme-color, #409eff);
+  --color-hover-color: var(--art-hover-color);
+  --color-active-color: var(--art-active-color);
+}
+
+/* 共享组件用到的组合工具类（基座 tailwind.css 里已有，子应用需补齐同一套） */
+@layer utilities {
+  .flex-c {
+    @apply flex items-center;
+  }
+  .flex-b {
+    @apply flex justify-between;
+  }
+  .flex-cc {
+    @apply flex items-center justify-center;
+  }
+  .flex-cb {
+    @apply flex items-center justify-between;
+  }
+  .flex-rb {
+    @apply flex items-center justify-between;
+  }
+  .tad-200 {
+    @apply transition-all duration-200;
+  }
+  .tad-300 {
+    @apply transition-all duration-300;
+  }
+  .border-full-d {
+    @apply border border-[var(--default-border)];
+  }
+  .border-b-d {
+    @apply border-b border-[var(--default-border)];
+  }
+  .border-t-d {
+    @apply border-t border-[var(--default-border)];
+  }
+  .border-l-d {
+    @apply border-l border-[var(--default-border)];
+  }
+  .border-r-d {
+    @apply border-r border-[var(--default-border)];
+  }
+  .c-p {
+    @apply cursor-pointer;
+  }
+}
